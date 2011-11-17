@@ -1,6 +1,6 @@
 # SphinxRT (Real Time Indexes) for CodeIgniter 2+
 
-This library allows you to communicate with Sphinx via it's SphinxQL (SQL-esqe) method of inserting, updating, deleting and searching. This library only works with with Real Time indexes but you technically could use it to search a normal Sphinx Index.
+This library allows you to communicate with Sphinx via it's SphinxQL (SQL-esqe) method of inserting, updating, deleting and searching. This library only works with with Real Time indexes but you technically could use it to search a normal Sphinx Index. This library makes use of the SphinxQL language over the SpinxAPI (this method has been proven that in-scale, the SphinxQL system works more efficiently and can handle more requests per second).
 
 ## Currently Supported
 

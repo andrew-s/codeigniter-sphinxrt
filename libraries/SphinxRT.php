@@ -6,7 +6,8 @@ class SphinxRT {
 	public $sphinxql_link;
 	public $link_status = false;
 	public $errors = array('1' => 'Err#1: Bad link',
-						   '2' => 'Err#2: Missing structure');
+						   '2' => 'Err#2: Missing structure',
+						   '3' => 'Err#3: No results');
 	public $storage = array();
 	public $counter = 1;
 	private $CI;
@@ -24,7 +25,7 @@ class SphinxRT {
 		$this->sphinxql_link = new mysqli($this->CI->config->config['hostname'] . ':' . $this->CI->config->config['port']);
 		
 		// did the link work?
-		if($this->sphinxql_link === false)
+		if(!$this->sphinxql_link)
 		{
 			// update link status
 			$this->link_status = false;
@@ -88,7 +89,7 @@ class SphinxRT {
 	public function insert($index_name, $data_array)
 	{
 		// is the link working?
-		if(!$this->check_link_status)
+		if(!$this->check_link_status())
 		{
 			// link is already bad
 			return array('error' => $this->errors[1]);
@@ -138,59 +139,55 @@ class SphinxRT {
 	**********************/
 	public function search($index_name, $data_array)
 	{
+		// is the link working?
+		if(!$this->check_link_status())
+		{
+			// link is already bad
+			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
+		}
 		
 		// do we have the right kind of information?
-		if(isset($data_array['search'], $data_array['columns']))
+		if(isset($data_array['search']/*, $data_array['columns']*/))
 		{
 			// build first part of query
-			$query = 'SELECT * FROM `' . $index_name . '` ';
-			/*
-			// add in where clause
-			$query .= ' WHERE MATCH (';
-			
-			// match
-			foreach($data_array['columns'] as $key=>$value)
-			{
-				// where is the counter?
-				if($this->counter > 1)
-				{
-					// add comma
-					$query .= ', ';
-				}
-				
-				// add column name
-				$query .= '`' . $value . '`';
-				
-				// increment counter
-				$this->counter++;
-			}
-			
-			// reset counter
-			$this->counter = 1;*/
-			// add in where clause + basic search query
-			$query .= 'WHERE MATCH (' . mysql_real_escape_string($data_array['search'], $this->sphinxql_link) . ');';
+			$query = 'SELECT * FROM `' . $index_name . '` WHERE MATCH (\'' . $this->_escape($data_array['search']) . '\')';
 			
 			// execute query
-			$result = mysql_query($query, $this->sphinxql_link);
+			$result = $this->sphinxql_link->query($query);
 			
 			// clear result just incase a query has
 			// already been run
 			unset($this->storage['results']);
 			
-			// loop through results
-			while($rows = mysql_fetch_assoc($result, $this->sphinxql_link))
+			// successful query?
+			if($result)
 			{
-				// add in row
-				$this->storage['results']['records'][] = $rows;
-			}
-			
-			// we need meta information
-			$result_meta = mysql_query('SHOW META;', $this->sphinxql_link);
-			
-			// let's parse that result
-			while($rows_meta = mysql_fetch_assoc($result_meta, $this->sphinxql_link))
-			{
-				print_r($result_meta);
+				// loop through results
+				while($rows = $result->fetch_array())
+				{
+					// add in row
+					$this->storage['results']['records'][] = $rows;
+				}
+				
+				// we need meta information
+				$result_meta = $this->sphinxql_link->query('SHOW META');
+				
+				// let's parse that result meta information
+				while($rows_meta = $result_meta->fetch_array())
+				{
+					// add in meta
+					$this->storage['results']['meta'][$rows_meta['Variable_name']] = $rows_meta['Value'];
+				}
+				
+				// pass back all the result data
+				return $this->storage['results'];
+			} else {
+				// no results
+				return array('error' 	=> $this->errors[3],
+							 'native' 	=> $this->sphinxql_link->error);
 			}
 		} else {
 			// missing information

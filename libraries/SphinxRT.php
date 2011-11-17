@@ -38,46 +38,6 @@ class SphinxRT {
 		}
 	}
 	
-	// escape a string to Sphinx standard
-	public function _escape($string)
-	{
-		// remove tags, if any
-		$string = strip_tags($string);
-		
-		// trim
-		$string = trim($string);
-		
-		// scape the main things
-		$from = array('\\', '(',')','|','-','!','@','~','"','&', '/', '^', '$', '=', ';', '\'');
-		$to   = array('\\\\', '\(','\)','\|','\-','\!','\@','\~','\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
-		
-		// execute
-		$string = str_replace($from, $to, $string);
-		
-		// remove new lines, they aren't needed
-		$string = str_replace(array("\r", "\r\n", "\n"), ' ', $string);
-		
-		// remove whitespace
-		$string = preg_replace('/(?:(?)|(?))(\s+)(?=\<\/?)/', ' ', $string);
-		
-		// return
-		return $string;
-	}
-	
-	// check link status
-	public function check_link_status()
-	{
-		// is the link available?
-		if($this->link_status)
-		{
-			// is there
-			return true;
-		} else {
-			// failed
-			return false;
-		}
-	}
-	
 	// insert record
 	/**********************
 	required array system
@@ -230,6 +190,53 @@ class SphinxRT {
 		}
 	}
 	
+	// replace into, basically, update a record
+	/**********************
+	required array system
+		just an array e.g.
+		array('column_name' => 'column_data',
+			  etc...);
+	)
+	**********************/
+	public function update($index_name, $data_array)
+	{
+		// is the link working?
+		if(!$this->check_link_status())
+		{
+			// link is already bad
+			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
+		}
+		
+		// continue processing
+		// process the fieldnames
+		foreach($data_array as $key=>$value)
+		{
+			// build up column names
+			$this->data['update']['column_names'][] = '`' . $key . '`';
+			
+			// build up match data
+			$this->data['update']['column_data'][] = '\'' . $this->_escape($value) . '\'';
+		}
+		
+		// build query
+		$query = 'REPLACE INTO `' . $index_name . '`
+						(' . implode(', ', $this->data['insert']['column_names']) . ')
+					VALUES
+						(' . implode(', ', $this->data['insert']['column_data']) . ')';
+		
+		// let's perform the query
+		$result = $this->sphinxql_link->query($query);
+		
+		// reset insert data
+		unset($this->data['update'], $query);
+		
+		// did it work?
+		return $result !== false;
+	}
+	
 	// clear storage items that might get in the way
 	public function _clear()
 	{
@@ -238,4 +245,43 @@ class SphinxRT {
 			  $this->storage['temp']);
 	}
 	
+	// escape a string to Sphinx standard
+	public function _escape($string)
+	{
+		// remove tags, if any
+		$string = strip_tags($string);
+		
+		// trim
+		$string = trim($string);
+		
+		// scape the main things
+		$from = array('\\', '(',')','|','-','!','@','~','"','&', '/', '^', '$', '=', ';', '\'');
+		$to   = array('\\\\', '\(','\)','\|','\-','\!','\@','\~','\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
+		
+		// execute
+		$string = str_replace($from, $to, $string);
+		
+		// remove new lines, they aren't needed
+		$string = str_replace(array("\r", "\r\n", "\n"), ' ', $string);
+		
+		// remove whitespace
+		$string = preg_replace('/(?:(?)|(?))(\s+)(?=\<\/?)/', ' ', $string);
+		
+		// return
+		return $string;
+	}
+	
+	// check link status
+	public function check_link_status()
+	{
+		// is the link available?
+		if($this->link_status)
+		{
+			// is there
+			return true;
+		} else {
+			// failed
+			return false;
+		}
+	}
 }

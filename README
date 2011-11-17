@@ -1,6 +1,6 @@
 # SphinxRT (Real Time Indexes) for CodeIgniter 2+
 
-This library allows you to communicate with Sphinx via it's SphinxQL (SQL-esqe) method of inserting, updating, deleting and searching. This library only works with with Real Time indexes but you technically could use it to search a normal Sphinx Index. This library makes use of the SphinxQL language over the SpinxAPI (this method has been proven that in-scale, the SphinxQL system works more efficiently and can handle more requests per second).
+This library allows you to communicate with Sphinx via it's SphinxQL (SQL-esque) method of inserting, updating, deleting and searching. This library only works with with Real Time indexes but you technically could use it to search a normal Sphinx Index. This library makes use of the SphinxQL language over the SpinxAPI (this method has been proven that in-scale, the SphinxQL system works more efficiently and can handle more requests per second).
 
 ## Currently Supported
 
@@ -14,6 +14,31 @@ There are several elements currently supported but to this is only to a basic le
 
 ## TODO
 
+- Ability to Weight Columns
+- Truncate/Clear whole index
+- Search Across multiple indexes at once
+- Ability to "group by"
+- Ability to change ranking algorithm
+- Pull back server statistics
+- Delete items
 
 ## Usage Example
 
+Example of using insert:
+	$this->sphinxrt->insert('example', array('a_id' => 5,
+    										 'name' => 'Example'));
+                                             
+Example of using search:
+	$result = $this->sphinxrt->search('example', array('search' 	=> 'my query',
+													   'limit' 		=> 100,
+													   'start'		=> 0,
+													   'where' 		=> array('is_active,=' => 1)));
+                                                       
+Example of using update:
+	$this->sphinxrt->update('example', array('a_id' => 5,
+    										 'name' => 'Example'));
+    
+## Notes
+
+- You CAN'T use a column called "id", it's just not allowed
+- Queries can't end with a ";" as it's not allowed - this isn't a database

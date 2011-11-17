@@ -223,9 +223,9 @@ class SphinxRT {
 		
 		// build query
 		$query = 'REPLACE INTO `' . $index_name . '`
-						(' . implode(', ', $this->data['insert']['column_names']) . ')
+						(' . implode(', ', $this->data['update']['column_names']) . ')
 					VALUES
-						(' . implode(', ', $this->data['insert']['column_data']) . ')';
+						(' . implode(', ', $this->data['update']['column_data']) . ')';
 		
 		// let's perform the query
 		$result = $this->sphinxql_link->query($query);

@@ -9,16 +9,19 @@ class SphinxRT {
 						   '2' => 'Err#2: Missing structure');
 	public $storage = array();
 	public $counter = 1;
+	private $CI;
 	
 	// construct
 	public function __construct()
 	{
-		// load the config
-		$CI->config->load('sphinxrt');
+		// get CI
+		$this->CI = &get_instance();
 		
-		// are the configs set?
+		// load the config
+		$this->CI->config->load('sphinxrt');
+
 		// attempt to connect to Sphinx
-		$this->sphinxql_link = mysql_connect($CI->config->item('hostname', 'sphinxrt') . ':' . $CI->config->item('port', 'sphinxrt'));
+		$this->sphinxql_link = new mysqli($this->CI->config->config['hostname'] . ':' . $this->CI->config->config['port']);
 		
 		// did the link work?
 		if($this->sphinxql_link === false)
@@ -34,84 +37,91 @@ class SphinxRT {
 		}
 	}
 	
+	// escape a string to Sphinx standard
+	public function _escape($string)
+	{
+		// remove tags, if any
+		$string = strip_tags($string);
+		
+		// trim
+		$string = trim($string);
+		
+		// scape the main things
+		$from = array('\\', '(',')','|','-','!','@','~','"','&', '/', '^', '$', '=', ';', '\'');
+		$to   = array('\\\\', '\(','\)','\|','\-','\!','\@','\~','\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
+		
+		// execute
+		$string = str_replace($from, $to, $string);
+		
+		// remove new lines, they aren't needed
+		$string = str_replace(array("\r", "\r\n", "\n"), ' ', $string);
+		
+		// remove whitespace
+		$string = preg_replace('/(?:(?)|(?))(\s+)(?=\<\/?)/', ' ', $string);
+		
+		// return
+		return $string;
+	}
+	
+	// check link status
+	public function check_link_status()
+	{
+		// is the link available?
+		if($this->link_status)
+		{
+			// is there
+			return true;
+		} else {
+			// failed
+			return false;
+		}
+	}
+	
 	// insert record
+	/**********************
+	required array system
+		just an array e.g.
+		array('column_name' => 'column_data',
+			  etc...);
+	)
+	**********************/
 	public function insert($index_name, $data_array)
 	{
 		// is the link working?
-		if($link_status)
+		if(!$this->check_link_status)
 		{
-			// continue processing
-			// process the fieldnames
-			foreach($data_array as $key=>$value)
-			{
-				// build up column names
-				$this->data['insert']['column_names'][] = $key;
-				
-				// build up match data
-				$this->data['insert']['column_data'][] = $key;
-			}
-			
-			// start to build query
-			$query = 'INSERT INTO `' . $index_name . '`';
-			
-			// add column names
-			$query .= ' (';
-			
-			// loop through column names
-			foreach($this->data['insert']['column_names'] as $key=>$value)
-			{
-				// where is the counter at?
-				if($this->counter > 1)
-				{
-					// add comma
-					$query .= ', ';
-				}
-				
-				// append column name
-				$query .= '`' . $value . '`';
-				
-				// increment counter
-				$this->counter++;
-			}
-			
-			// reset counter
-			$this->counter = 1;
-			
-			// close columns and begin data
-			$query .= ') VALUES (';
-			
-			// loop through data
-			foreach($this->data['insert']['column_data'] as $key=>$value)
-			{
-				// where is the counter at?
-				if($this->counter > 1)
-				{
-					// add comma
-					$query .= ', ';
-				}
-				
-				// append data string
-				$query .= '\'' . mysql_real_escape_string($value, $this->sphinxql_link) . '\'';
-				
-				// increment counter
-				$this->counter++;
-			}
-			
-			// reset counter
-			$this->counter = 1;
-			
-			// close the data and query
-			$query .= ');';
-			
-			// let's perform the query
-			$result = mysql_query($query, $this->sphinxql_link);
-			
-			// did it work?
-			return $result !== false; # these lines were stolen by Phil Sturgeon
-		} else {
 			// link is already bad
 			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
 		}
+		
+		// continue processing
+		// process the fieldnames
+		foreach($data_array as $key=>$value)
+		{
+			// build up column names
+			$this->data['insert']['column_names'][] = '`' . $key . '`';
+			
+			// build up match data
+			$this->data['insert']['column_data'][] = '\'' . $this->_escape($value) . '\'';
+		}
+		
+		// build query
+		$query = 'INSERT INTO `' . $index_name . '`
+						(' . implode(', ', $this->data['insert']['column_names']) . ')
+					VALUES
+						(' . implode(', ', $this->data['insert']['column_data']) . ')';
+		
+		// let's perform the query
+		$result = $this->sphinxql_link->query($query);
+
+		// reset insert data
+		unset($this->data['insert'], $query);
+		
+		// did it work?
+		return $result !== false; # these lines were stolen by Phil Sturgeon
 	}
 	
 	// perform a search
@@ -128,6 +138,7 @@ class SphinxRT {
 	**********************/
 	public function search($index_name, $data_array)
 	{
+		
 		// do we have the right kind of information?
 		if(isset($data_array['search'], $data_array['columns']))
 		{

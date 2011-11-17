@@ -10,7 +10,7 @@ There are several elements currently supported but to this is only to a basic le
 
 - PHP 5.2+
 - MySQLi Driver (Improved)
-- Sphinx 2.0.1BETA+
+- Sphinx 2.0.1BETA+ (YOU MUST CONFIGURE SPHINX FIRST)
 
 ## TODO
 
@@ -25,18 +25,24 @@ There are several elements currently supported but to this is only to a basic le
 ## Usage Example
 
 Example of using insert:
+```php
 	$this->sphinxrt->insert('example', array('a_id' => 5,
     										 'name' => 'Example'));
-                                             
+```
+                                       
 Example of using search:
+```php
 	$result = $this->sphinxrt->search('example', array('search' 	=> 'my query',
 													   'limit' 		=> 100,
 													   'start'		=> 0,
 													   'where' 		=> array('is_active,=' => 1)));
+```
                                                        
 Example of using update:
+```php
 	$this->sphinxrt->update('example', array('a_id' => 5,
     										 'name' => 'Example'));
+```
     
 ## Notes
 

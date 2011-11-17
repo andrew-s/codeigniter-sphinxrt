@@ -117,7 +117,7 @@ class SphinxRT {
 		
 		// let's perform the query
 		$result = $this->sphinxql_link->query($query);
-
+		
 		// reset insert data
 		unset($this->data['insert'], $query);
 		
@@ -131,6 +131,8 @@ class SphinxRT {
 	array('search' => 'query',
 		  'limit' => 'int',
 		  'start' => 'int',
+		  'where' => array('id,=' => int,
+		  				   'author_id,=' => int), (example columns)
 		  'columns' => array([] => 'column_name'); # this will be added later
 		  										   # to allow for more complex
 												   # queries to take place
@@ -149,18 +151,51 @@ class SphinxRT {
 			break;
 		}
 		
+		// clear up
+		$this->_clear();
+		
 		// do we have the right kind of information?
 		if(isset($data_array['search']/*, $data_array['columns']*/))
 		{
 			// build first part of query
 			$query = 'SELECT * FROM `' . $index_name . '` WHERE MATCH (\'' . $this->_escape($data_array['search']) . '\')';
 			
+			// let's add in some more clauses
+			if(isset($data_array['where']))
+			{
+				// we're looking to add some more
+				// build up some cases
+				foreach($data_array['where'] as $key=>$value)
+				{
+					// add into new array
+					// explode values to find operators
+					$new_operator = explode(',', $key);
+					
+					// is the value an integer?
+					if(is_int($value))
+					{
+						// no need to escape value as sphinx
+						// will be expecting an unescaped int
+						$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' ' . $this->_escape($value);
+					} else {
+						// escape
+						$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' \'' . $this->_escape($value) . '\'';
+					}
+				}
+				
+				// implde them onto the query
+				$query .= ' AND ' . implode(' AND ', $this->storage['temp']['search_where_clauses']);
+			}
+			
+			// add start/limits?
+			if(is_int($data_array['limit']) && is_int($data_array['start']))
+			{
+				// have some values, push these
+				$query .= ' LIMIT ' . $data_array['start'] . ', ' . $data_array['limit'];
+			}
+			
 			// execute query
 			$result = $this->sphinxql_link->query($query);
-			
-			// clear result just incase a query has
-			// already been run
-			unset($this->storage['results']);
 			
 			// successful query?
 			if($result)
@@ -195,5 +230,12 @@ class SphinxRT {
 		}
 	}
 	
+	// clear storage items that might get in the way
+	public function _clear()
+	{
+		// clear
+		unset($this->storage['results'],
+			  $this->storage['temp']);
+	}
 	
 }

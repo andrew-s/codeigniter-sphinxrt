@@ -25,13 +25,13 @@ There are several elements currently supported but to this is only to a basic le
 ## Usage Example
 
 Example of using insert:
-```php
+```
 	$this->sphinxrt->insert('example', array('a_id' => 5,
     										 'name' => 'Example'));
 ```
                                        
 Example of using search:
-```php
+```
 	$result = $this->sphinxrt->search('example', array('search' 	=> 'my query',
 													   'limit' 		=> 100,
 													   'start'		=> 0,
@@ -39,7 +39,7 @@ Example of using search:
 ```
                                                        
 Example of using update:
-```php
+```
 	$this->sphinxrt->update('example', array('a_id' => 5,
     										 'name' => 'Example'));
 ```

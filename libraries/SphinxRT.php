@@ -231,6 +231,12 @@ class SphinxRT
 			} 
 			else 
 			{
+				
+				// pass back all the result data
+				return $this->storage['results'];
+			} 
+			else 
+			{
 				// no results
 				return array('error' 	=> $this->errors[3],
 							 'native' 	=> $this->sphinxql_link->error);
@@ -397,6 +403,70 @@ class SphinxRT
 		}
 	}
 	
+	// truncate an index
+	public function truncate($index_name)
+	{
+		// is the link working?
+		if(!$this->check_link_status())
+		{
+			// link is already bad
+			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
+		}
+		
+		// build query
+		$query = 'TRUNCATE RTINDEX `' . $index_name . '`';
+		
+		// perform query
+		$result = $this->sphinxql_link->query($query);
+		
+		// reset truncate data
+		unset($index_name);
+		
+		// did it work?
+		return $result !== false;
+	}
+	
+	// delete an item
+	public function delete($index_name, $data_array)
+	{
+		// is the link working?
+		if(!$this->check_link_status())
+		{
+			// link is already bad
+			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
+		}
+		
+		// build query
+		$query = 'DELETE FROM `' . $index_name . '`';
+		
+		// is it a query?
+		if(is_array($data_array))
+		{
+			// process
+			
+		}
+		else
+		{
+			// give it a raw query
+			$query .= ' WHERE ' . $data_array;
+		}
+		
+		// perform query
+		$result = $this->sphinxql_link->query($query);
+		
+		// reset data
+		unset($index_name, $data_array);
+		
+		// did it work?
+		return $result !== false;
+	}
+
 	// clear storage items that might get in the way
 	public function _clear()
 	{

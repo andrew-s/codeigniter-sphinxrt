@@ -1,7 +1,8 @@
 <?php
 
 // SphinxRT Search Interface for CodeIgniter
-class SphinxRT {
+class SphinxRT
+{
 	// variables
 	public $sphinxql_link;
 	public $link_status = false;
@@ -22,7 +23,7 @@ class SphinxRT {
 		$this->CI->config->load('sphinxrt');
 
 		// attempt to connect to Sphinx
-		$this->sphinxql_link = new mysqli($this->CI->config->config['hostname'] . ':' . $this->CI->config->config['port']);
+		$this->sphinxql_link = new mysqli($this->CI->config->config['hostname'], 'sphinx', '', '', $this->CI->config->config['port']);
 		
 		// did the link work?
 		if(!$this->sphinxql_link)
@@ -32,10 +33,37 @@ class SphinxRT {
 			
 			// didn't work
 			throw new Exception('Unable to communicate to the Sphinx Server');
-		} else {
+		}
+		else 
+		{
 			// we did get an object
 			$this->link_status = true;
 		}
+	}
+	
+	// fix up "records"
+	public function _fix_records($records)
+	{
+		// define
+		$new_records = array();
+		
+		// loop through
+		foreach($records as $key=>$value)
+		{
+			// loop through values
+			foreach($value as $column=>$data)
+			{
+				// is the column numeric?
+				if(!is_numeric($column))
+				{
+					// add it back
+					$new_records[$key][$column] = $data;
+				}
+			}
+		}
+		
+		// return
+		return $new_records;
 	}
 	
 	// insert record
@@ -46,7 +74,7 @@ class SphinxRT {
 			  etc...);
 	)
 	**********************/
-	public function insert($index_name, $data_array)
+	public function insert($index_name, $data_array, $id)
 	{
 		// is the link working?
 		if(!$this->check_link_status())
@@ -58,6 +86,9 @@ class SphinxRT {
 			break;
 		}
 		
+		// add in id
+		$data_array['id'] = $id;
+		
 		// continue processing
 		// process the fieldnames
 		foreach($data_array as $key=>$value)
@@ -66,6 +97,7 @@ class SphinxRT {
 			$this->data['insert']['column_names'][] = '`' . $key . '`';
 			
 			// build up match data
+			// add escaping
 			$this->data['insert']['column_data'][] = '\'' . $this->_escape($value) . '\'';
 		}
 		
@@ -76,8 +108,8 @@ class SphinxRT {
 						(' . implode(', ', $this->data['insert']['column_data']) . ')';
 		
 		// let's perform the query
-		$result = $this->sphinxql_link->query($query);
-		
+		$result = $this->sphinxql_link->query($query) or die(mysqli_error($this->sphinxql_link));
+
 		// reset insert data
 		unset($this->data['insert'], $query);
 		
@@ -131,16 +163,8 @@ class SphinxRT {
 					// explode values to find operators
 					$new_operator = explode(',', $key);
 					
-					// is the value an integer?
-					if(is_int($value))
-					{
-						// no need to escape value as sphinx
-						// will be expecting an unescaped int
-						$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' ' . $this->_escape($value);
-					} else {
-						// escape
-						$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' \'' . $this->_escape($value) . '\'';
-					}
+					// escape
+					$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' \'' . $this->_escape($value) . '\'';
 				}
 				
 				// implde them onto the query
@@ -167,24 +191,53 @@ class SphinxRT {
 					$this->storage['results']['records'][] = $rows;
 				}
 				
-				// we need meta information
-				$result_meta = $this->sphinxql_link->query('SHOW META');
-				
-				// let's parse that result meta information
-				while($rows_meta = $result_meta->fetch_array())
+				// are there any results?
+				if(isset($this->storage['results']))
 				{
-					// add in meta
-					$this->storage['results']['meta'][$rows_meta['Variable_name']] = $rows_meta['Value'];
+					// clean up the records
+					$this->storage['results']['records'] = $this->_fix_records($this->storage['results']['records']);
+					
+					// we need meta information
+					$result_meta = $this->sphinxql_link->query('SHOW META');
+					
+					// let's parse that result meta information
+					while($rows_meta = $result_meta->fetch_array())
+					{
+						// add in meta
+						$this->storage['results']['meta'][$rows_meta['Variable_name']] = $rows_meta['Value'];
+					}
+					
+					// pass back all the result data
+					return $this->storage['results'];
 				}
-				
-				// pass back all the result data
-				return $this->storage['results'];
-			} else {
+				else
+				{
+					// define
+					$this->storage['results'] = array();
+					
+					// still need meta information
+					$result_meta = $this->sphinxql_link->query('SHOW META');
+					
+					// let's parse that result meta information
+					while($rows_meta = $result_meta->fetch_array())
+					{
+						// add in meta
+						$this->storage['results']['meta'][$rows_meta['Variable_name']] = $rows_meta['Value'];
+					}
+					
+					// no results
+					return $this->storage['results'];
+				}
+			} 
+			else 
+			{
 				// no results
 				return array('error' 	=> $this->errors[3],
 							 'native' 	=> $this->sphinxql_link->error);
 			}
-		} else {
+		} 
+		else 
+		{
 			// missing information
 			return array('error' => $this->errors[2]);
 		}
@@ -237,6 +290,113 @@ class SphinxRT {
 		return $result !== false;
 	}
 	
+	// truncate an index
+	public function truncate($index_name)
+	{
+		// is the link working?
+		if(!$this->check_link_status())
+		{
+			// link is already bad
+			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
+		}
+		
+		// build query
+		$query = 'TRUNCATE RTINDEX `' . $index_name . '`';
+		
+		// perform query
+		$result = $this->sphinxql_link->query($query);
+		
+		// reset truncate data
+		unset($index_name);
+		
+		// did it work?
+		return $result !== false;
+	}
+	
+	// delete an item
+	public function delete($index_name, $data_array)
+	{
+		// is the link working?
+		if(!$this->check_link_status())
+		{
+			// link is already bad
+			return array('error' => $this->errors[1]);
+			
+			// end
+			break;
+		}
+		
+		// build query
+		$query = 'DELETE FROM `' . $index_name . '`';
+		
+		// is it a query?
+		if(is_array($data_array))
+		{
+			// process
+			
+		}
+		else
+		{
+			// give it a raw query
+			$query .= ' WHERE ' . $data_array;
+		}
+		
+		// perform query
+		$result = $this->sphinxql_link->query($query);
+		
+		// reset data
+		unset($index_name, $data_array);
+		
+		// did it work?
+		return $result !== false;
+	}
+	
+	// flatten records
+	public function flatten_records($records, $as_array = false)
+	{
+		// define
+		$ids = array();
+		
+		// loop through and flatten
+		foreach($records as $record_id=>$result)
+		{
+			// loop through the record for id
+			foreach($result as $column=>$data)
+			{
+				// is this the id column?
+				if($column === 'id')
+				{
+					// add an id
+					$ids[] = (int)$data;
+				}
+			}
+		}
+		
+		// make sure it isn't empty
+		if(empty($ids))
+		{
+			// no ids?
+			return false;
+		}
+		else
+		{
+			// are we returning an array?
+			if($as_array)
+			{
+				// just return
+				return $ids;
+			}
+			else
+			{
+				// return results
+				return implode(', ', $ids);
+			}
+		}
+	}
+	
 	// clear storage items that might get in the way
 	public function _clear()
 	{
@@ -279,7 +439,9 @@ class SphinxRT {
 		{
 			// is there
 			return true;
-		} else {
+		} 
+		else 
+		{
 			// failed
 			return false;
 		}

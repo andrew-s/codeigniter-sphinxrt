@@ -98,7 +98,7 @@ class SphinxRT
 			
 			// build up match data
 			// add escaping
-			$this->data['insert']['column_data'][] = '\'' . $this->_escape($value) . '\'';
+			$this->data['insert']['column_data'][] = $this->_escape($value);
 		}
 		
 		// build query
@@ -114,7 +114,16 @@ class SphinxRT
 		unset($this->data['insert'], $query);
 		
 		// did it work?
-		return $result !== false; # these lines were stolen by Phil Sturgeon
+		if(!$result)
+		{
+			// failed
+			return false;
+		}
+		else
+		{
+			// return our result set
+			return $result;
+		}
 	}
 	
 	// perform a search
@@ -150,7 +159,7 @@ class SphinxRT
 		if(isset($data_array['search']/*, $data_array['columns']*/))
 		{
 			// build first part of query
-			$query = 'SELECT * FROM `' . $index_name . '` WHERE MATCH (\'' . $this->_escape($data_array['search']) . '\')';
+			$query = 'SELECT * FROM `' . $index_name . '` WHERE MATCH (' . $this->_escape($data_array['search']) . ')';
 			
 			// let's add in some more clauses
 			if(isset($data_array['where']))
@@ -161,10 +170,10 @@ class SphinxRT
 				{
 					// add into new array
 					// explode values to find operators
-					$new_operator = explode(',', $key);
-					
+					$new_operator = explode(',', $value[0]);
+
 					// escape
-					$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' \'' . $this->_escape($value) . '\'';
+					$this->storage['temp']['search_where_clauses'][] = '`' . $new_operator[0] . '` ' . $new_operator[1] . ' ' . $this->_escape($value[1]);
 				}
 				
 				// implde them onto the query
@@ -177,7 +186,7 @@ class SphinxRT
 				// have some values, push these
 				$query .= ' LIMIT ' . $data_array['start'] . ', ' . $data_array['limit'];
 			}
-			
+
 			// execute query
 			$result = $this->sphinxql_link->query($query);
 			
@@ -231,12 +240,6 @@ class SphinxRT
 			} 
 			else 
 			{
-				
-				// pass back all the result data
-				return $this->storage['results'];
-			} 
-			else 
-			{
 				// no results
 				return array('error' 	=> $this->errors[3],
 							 'native' 	=> $this->sphinxql_link->error);
@@ -277,7 +280,7 @@ class SphinxRT
 			$this->data['update']['column_names'][] = '`' . $key . '`';
 			
 			// build up match data
-			$this->data['update']['column_data'][] = '\'' . $this->_escape($value) . '\'';
+			$this->data['update']['column_data'][] = $this->_escape($value);
 		}
 		
 		// build query
@@ -403,70 +406,6 @@ class SphinxRT
 		}
 	}
 	
-	// truncate an index
-	public function truncate($index_name)
-	{
-		// is the link working?
-		if(!$this->check_link_status())
-		{
-			// link is already bad
-			return array('error' => $this->errors[1]);
-			
-			// end
-			break;
-		}
-		
-		// build query
-		$query = 'TRUNCATE RTINDEX `' . $index_name . '`';
-		
-		// perform query
-		$result = $this->sphinxql_link->query($query);
-		
-		// reset truncate data
-		unset($index_name);
-		
-		// did it work?
-		return $result !== false;
-	}
-	
-	// delete an item
-	public function delete($index_name, $data_array)
-	{
-		// is the link working?
-		if(!$this->check_link_status())
-		{
-			// link is already bad
-			return array('error' => $this->errors[1]);
-			
-			// end
-			break;
-		}
-		
-		// build query
-		$query = 'DELETE FROM `' . $index_name . '`';
-		
-		// is it a query?
-		if(is_array($data_array))
-		{
-			// process
-			
-		}
-		else
-		{
-			// give it a raw query
-			$query .= ' WHERE ' . $data_array;
-		}
-		
-		// perform query
-		$result = $this->sphinxql_link->query($query);
-		
-		// reset data
-		unset($index_name, $data_array);
-		
-		// did it work?
-		return $result !== false;
-	}
-
 	// clear storage items that might get in the way
 	public function _clear()
 	{
@@ -486,7 +425,7 @@ class SphinxRT
 		
 		// scape the main things
 		$from = array('\\', '(',')','|','-','!','@','~','"','&', '/', '^', '$', '=', ';', '\'');
-		$to   = array('\\\\', '\(','\)','\|','\-','\!','\@','\~','\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
+		$to   = array('\\\\', '\(', '\)', '\|', '\-', '\!', '\@', '\~', '\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
 		
 		// execute
 		$string = str_replace($from, $to, $string);
@@ -497,8 +436,17 @@ class SphinxRT
 		// remove whitespace
 		$string = preg_replace('/(?:(?)|(?))(\s+)(?=\<\/?)/', ' ', $string);
 		
-		// return
-		return $string;
+		// is this numeric?
+		if(is_numeric($string))
+		{
+			// this is safe
+			return $string;
+		}
+		else
+		{
+			// escape and return
+			return '\'' . $string . '\'';
+		}
 	}
 	
 	// check link status

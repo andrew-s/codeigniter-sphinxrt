@@ -132,8 +132,8 @@ class SphinxRT
 	array('search' => 'query',
 		  'limit' => 'int',
 		  'start' => 'int',
-		  'where' => array('id,=' => int,
-		  				   'author_id,=' => int), (example columns)
+		  'where' => array(array('id,=' => int),
+		  				   array('author_id,=' => int)), (example columns)
 		  'columns' => array([] => 'column_name'); # this will be added later
 		  										   # to allow for more complex
 												   # queries to take place
@@ -326,7 +326,7 @@ class SphinxRT
 	}
 	
 	// delete an item
-	public function delete($index_name, $data_array)
+	public function delete($index_name, $data_array, $segmentation = false)
 	{
 		// is the link working?
 		if(!$this->check_link_status())
@@ -345,7 +345,8 @@ class SphinxRT
 		if(is_array($data_array))
 		{
 			// process
-			
+			// this should be a list of id's
+			$query .= ' WHERE IN (' . implode(',', $data_array) . ')';
 		}
 		else
 		{
@@ -359,8 +360,57 @@ class SphinxRT
 		// reset data
 		unset($index_name, $data_array);
 		
-		// did it work?
-		return $result !== false;
+		// are we locally looking up?
+		if(!$segmentation)
+		{
+			// did it work?
+			return $result !== false;
+		}
+	}
+	
+	// delete from a result set
+	public function delete_from_resultset($index_name, $result_array, $id_column = 'id')
+	{
+		// make sure we have data
+		if(is_array($result_array) && (count($result_array) > 0))
+		{
+			// define
+			$id_array = array();
+			
+			// let's loop through
+			foreach($result_array as $row=>$record)
+			{
+				// add it (or overwrite, not that that should happen)
+				$id_array[$record[$id_column]] = $record[$id_column];
+			}
+			
+			// do we have any results?
+			if(is_array($id_array) && (count($id_array) > 0))
+			{
+				// we'll now chunk our array into 50 pieces
+				$new_id_array = array_chunk($id_array, 50, true);
+
+				// loop through and pass to the delete function
+				foreach($new_id_array as $chunk_id=>$chunk_pieces)
+				{
+					// pass
+					$this->delete($index_name, $chunk_pieces, true);
+				}
+				
+				// we'll assume we've completed (or at least we've executed the correct commands)
+				return true;
+			}
+			else
+			{
+				// we'll say this didn't work
+				return false;
+			}
+		}
+		else
+		{
+			// assume we were successful
+			return true;
+		}
 	}
 	
 	// flatten records
@@ -417,35 +467,36 @@ class SphinxRT
 	// escape a string to Sphinx standard
 	public function _escape($string)
 	{
-		// remove tags, if any
-		$string = strip_tags($string);
-		
-		// trim
-		$string = trim($string);
-		
-		// scape the main things
-		$from = array('\\', '(',')','|','-','!','@','~','"','&', '/', '^', '$', '=', ';', '\'');
-		$to   = array('\\\\', '\(', '\)', '\|', '\-', '\!', '\@', '\~', '\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
-		
-		// execute
-		$string = str_replace($from, $to, $string);
-		
-		// remove new lines, they aren't needed
-		$string = str_replace(array("\r", "\r\n", "\n"), ' ', $string);
-		
-		// remove whitespace
-		$string = preg_replace('/(?:(?)|(?))(\s+)(?=\<\/?)/', ' ', $string);
-		
-		// is this numeric?
-		if(is_numeric($string))
+		// determine the variable type
+		if((gettype($string) == 'integer') || (gettype($string) == 'double') || (gettype($string) == 'boolean') || (gettype($string) == 'NULL'))
 		{
-			// this is safe
+			// it's numeric, return it raw
 			return $string;
 		}
 		else
 		{
-			// escape and return
-			return '\'' . $string . '\'';
+			// let's do some processing
+			// remove tags, if any
+			$string = strip_tags($string);
+			
+			// trim
+			$string = trim($string);
+			
+			// scape the main things
+			$from = array('\\', '(',')','|','-','!','@','~','"','&', '/', '^', '$', '=', ';', '\'');
+			$to   = array('\\\\', '\(', '\)', '\|', '\-', '\!', '\@', '\~', '\"', '\&', '\/', '\^', '\$', '\=', '\;', '\\\'');
+			
+			// execute
+			$string = str_replace($from, $to, $string);
+			
+			// remove new lines, they aren't needed
+			$string = str_replace(array("\r", "\r\n", "\n"), ' ', $string);
+			
+			// remove whitespace
+			$string = preg_replace('/(?:(?)|(?))(\s+)(?=\<\/?)/', ' ', $string);
+			
+			// this is safe
+			return '\'' . (string)$string . '\'';
 		}
 	}
 	
